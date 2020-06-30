@@ -1,0 +1,147 @@
+type: edu
+custom_name: stage6
+files:
+- name: tests.py
+  visible: false
+  text: |
+    from hstest.stage_test import StageTest
+    from hstest.test_case import TestCase
+    from hstest.check_result import CheckResult
+
+    import os
+    import shutil
+
+    from colorama import Fore
+
+    import sys
+    if sys.platform.startswith("win"):
+        import _locale
+        # pylint: disable=protected-access
+        _locale._getdefaultlocale = (lambda *args: ['en_US', 'utf8'])
+
+    CheckResult.correct = lambda: CheckResult(True, '')
+    CheckResult.wrong = lambda feedback: CheckResult(False, feedback)
+
+
+    class TextBasedBrowserTest(StageTest):
+
+        def generate(self):
+
+            dir_for_files = os.path.join(os.curdir, 'tb_tabs')
+            return [
+                TestCase(
+                    stdin='2.python-requests.org\nexit',
+                    attach='requests',
+                    args=[dir_for_files]
+                ),
+                TestCase(
+                    stdin='en.wikipedia.org\nwiki\nexit',
+                    attach='Wikipedia',
+                    args=[dir_for_files]
+                ),
+                TestCase(
+                    stdin='nytimescom\nexit',
+                    args=[dir_for_files]
+                ),
+                TestCase(
+                    stdin='bloombergcom\nexit',
+                    args=[dir_for_files]
+                ),
+            ]
+
+        def _check_files(self, path_for_tabs: str, right_word: str) -> bool:
+            """
+            Helper which checks that browser saves visited url in files and
+            provides access to them.
+
+            :param path_for_tabs: directory which must contain saved tabs
+            :param right_word: Word-marker which must be in right tab
+            :return: True, if right_words is present in saved tab
+            """
+
+            path, dirs, filenames = next(os.walk(path_for_tabs))
+
+            for file in filenames:
+
+                with open(os.path.join(path_for_tabs, file), 'r', encoding='utf-8') as tab:
+                    content = tab.read()
+
+                    if '</p>' not in content and '</script>' not in content:
+                        if '</div>' not in content and right_word in content:
+                            return True
+
+            return False
+
+        def check(self, reply, attach):
+
+            # Incorrect URL
+            if attach is None:
+                if '<p>' in reply:
+                    return CheckResult.wrong('You haven\'t checked was URL correct')
+                else:
+                    return CheckResult.correct()
+
+            # Correct URL
+            if isinstance(attach, str):
+                right_word = attach
+
+                path_for_tabs = os.path.join(os.curdir, 'tb_tabs')
+
+                if not os.path.isdir(path_for_tabs):
+                    return CheckResult.wrong("There are no directory for tabs")
+
+                if not self._check_files(path_for_tabs, right_word):
+                    return CheckResult.wrong('There are no correct saved tabs')
+
+                try:
+                    shutil.rmtree(path_for_tabs)
+                except PermissionError:
+                    return CheckResult.wrong("Impossible to remove the directory for tabs. Perhaps you haven't closed some file?")
+
+
+                if not Fore.BLUE in reply:
+                    return CheckResult.wrong('There are no blue refs in output')
+
+                if '</p>' not in reply and '</div>' not in reply:
+                    if right_word in reply:
+                        return CheckResult.correct()
+
+                return CheckResult.wrong('You haven\'t parsed result of request')
+
+
+    TextBasedBrowserTest('browser.browser').run_tests()
+  learner_created: false
+- name: browser/browser.py
+  visible: true
+  text: "import os\nimport sys\nimport requests\nimport bs4\nfrom collections import\
+    \ deque\n\n\ndef text_getter(url):\n    r = requests.get(url)\n    if r:\n   \
+    \     soup = bs4.BeautifulSoup(r.content, 'html.parser')\n        for script in\
+    \ soup(['script', 'style']):\n            script.decompose()\n        body = list(soup.find('body'))[1].get_text()\n\
+    \        body = body.replace('\\t', '')\n        body = body.split('\\n\\n')\n\
+    \        return '\\n'.join([x for x in body if x != ''])\n    return 'False'\n\
+    \n\ndef main():\n    new_stack = deque()\n    args = sys.argv\n\n    if args[1]\
+    \ != \"\":\n        script_path = os.path.abspath('')\n        print(script_path)\n\
+    \        new_path = os.path.join(script_path, args[1])\n        if not os.path.exists(new_path):\n\
+    \            os.makedirs(new_path)\n    \n    while True:\n        url_input =\
+    \ input()\n        if url_input.endswith(\".com\"):\n            new_url_input\
+    \ = url_input[:-4]\n        else:\n            new_url_input = url_input\n   \
+    \ \n        file_path = \"\\\\\" + new_url_input + \".txt\"\n        file_path\
+    \ = os.path.join(new_path + file_path)\n    \n        if url_input == 'exit':\n\
+    \            exit()\n        elif url_input == 'back':\n            if len(new_stack)\
+    \ != 0:\n                new_stack.pop()\n                print(new_stack[len(new_stack)-1])\n\
+    \        elif '.' in url_input:\n            if not url_input.startswith('https://'):\n\
+    \                url_input = 'https://' + url_input\n            text = text_getter(url_input)\n\
+    \            if text == 'False':\n                print(\"Error 404: Website not\
+    \ found.\")\n            else:\n                print(text)\n                new_stack.append(text)\n\
+    \                with open(file_path, \"w\") as page:\n                    page.write(text)\n\
+    \        else:\n            try:\n                with open(file_path, \"r+\"\
+    ) as page:\n                    print(page.read())\n                    new_stack.append(page)\n\
+    \            except FileNotFoundError:\n                print(\"Error 404: Website\
+    \ not found.\")\n\n\n\nif __name__ == '__main__':\n    main()"
+  learner_created: true
+- name: browser/tb_tabs/en.wikipedia.txt
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/projects/79/stages/441/implement
+status: Solved
+record: 6
